@@ -6,20 +6,23 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title>Flip Clock</title>
+    <title>Flip Clock Pro - Vital</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&display=swap');
 
-        *,
-        *::before,
-        *::after {
+        :root {
+            --accent-color: #ffffff;
+            --dock-bg: rgba(28, 28, 30, 0.85);
+        }
+
+        *, *::before, *::after {
             box-sizing: border-box;
             margin: 0;
             padding: 0;
+            -webkit-tap-highlight-color: transparent;
         }
 
-        html,
-        body {
+        html, body {
             width: 100%;
             height: 100%;
             background: #000;
@@ -27,24 +30,100 @@
             -webkit-user-select: none;
             user-select: none;
             touch-action: none;
+            font-family: 'Bebas Neue', sans-serif;
         }
 
         body {
             display: flex;
-            flex-direction: column;
             align-items: center;
             justify-content: center;
-            font-family: 'Bebas Neue', sans-serif;
+        }
+
+        /* ── BATTERY INDICATOR ── */
+        #battery-wrapper {
+            position: fixed;
+            top: max(env(safe-area-inset-top, 0px), 16px);
+            right: max(env(safe-area-inset-right, 0px), 16px);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            opacity: 0.6;
+            transition: opacity 0.4s ease;
+            z-index: 50;
+            font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+            font-size: 12px;
+            color: #fff;
+            letter-spacing: 0.05em;
+        }
+
+        #battery-icon {
+            width: 24px;
+            height: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.7);
+            border-radius: 3px;
+            padding: 1px;
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+
+        #battery-icon::after {
+            content: '';
+            position: absolute;
+            right: -3px;
+            top: 2px;
+            width: 2px;
+            height: 6px;
+            background: rgba(255, 255, 255, 0.7);
+            border-radius: 0 1px 1px 0;
+        }
+
+        #battery-level {
+            height: 100%;
+            width: 100%; /* Default full */
+            background: rgba(255, 255, 255, 0.9);
+            border-radius: 1px;
+            transition: width 0.4s ease, background-color 0.4s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        #battery-bolt {
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            width: 8px;
+            height: 10px;
+            fill: #000;
+            display: none;
+            z-index: 2;
+        }
+
+        #battery-wrapper.charging #battery-level { background: #30d158; }
+        #battery-wrapper.charging #battery-icon { border-color: #30d158; }
+        #battery-wrapper.charging #battery-icon::after { background: #30d158; }
+        #battery-wrapper.charging #battery-bolt { display: block; }
+        
+        #battery-wrapper.low:not(.charging) #battery-level { background: #ff453a; }
+
+        /* ── CONTENT AREA (The new structural anchor) ── */
+        #content-area {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start; /* The magic alignment */
         }
 
         /* ── DATE ── */
         #date-line {
             color: rgba(255, 255, 255, 0.45);
-            font-family: -apple-system, sans-serif;
-            font-weight: 300;
-            font-size: clamp(12px, 2vw, 16px);
-            letter-spacing: 0.06em;
-            margin-bottom: clamp(10px, 2.5vh, 24px);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            font-weight: 500;
+            font-size: clamp(14px, 2.5vw, 18px);
+            letter-spacing: 0.05em;
+            margin-bottom: clamp(10px, 2vh, 20px);
+            transition: color 0.5s ease;
+            padding-left: 2px; /* Slight optical adjustment */
         }
 
         /* ── CLOCK WRAPPER ── */
@@ -60,17 +139,7 @@
             gap: clamp(8px, 2vw, 20px);
         }
 
-        body.landscape #sep {
-            display: none;
-        }
-
-        body.landscape #date-line {
-            position: fixed;
-            top: max(env(safe-area-inset-top, 0px), 12px);
-            left: 50%;
-            transform: translateX(-50%);
-            margin: 0;
-        }
+        body.landscape #sep { display: none; }
 
         #sep {
             color: rgba(255, 255, 255, 0.35);
@@ -84,182 +153,219 @@
             height: var(--ch, 220px);
             border-radius: var(--cr, 18px);
             position: relative;
-            background: #1c1c1e;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.8), 0 2px 6px rgba(0, 0, 0, 0.9);
+            background: #151515;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.9), inset 0 1px 1px rgba(255,255,255,0.05);
             overflow: hidden;
-            transform: translateZ(0); /* Aceleración por hardware */
+            transform: translateZ(0);
         }
 
-        .fc-upper,
-        .fc-lower,
-        .fc-flap-upper,
-        .fc-flap-lower {
+        .fc-upper, .fc-lower, .fc-flap-upper, .fc-flap-lower {
             position: absolute;
-            left: 0;
-            right: 0;
+            left: 0; right: 0;
             height: 50%;
             overflow: hidden;
             display: flex;
             justify-content: center;
             -webkit-backface-visibility: hidden;
             backface-visibility: hidden;
+            background: #1a1a1c;
         }
 
-        .fc-upper {
-            top: 0;
-            align-items: flex-end;
-        }
+        .fc-upper { top: 0; align-items: flex-end; }
+        .fc-lower { bottom: 0; align-items: flex-start; }
 
-        .fc-lower {
-            bottom: 0;
-            align-items: flex-start;
-        }
-
-        .fc-upper .num,
-        .fc-flap-upper .num {
+        .fc-upper .num, .fc-flap-upper .num {
             margin-bottom: 0;
             line-height: 1;
             transform: translateY(50%);
         }
 
-        .fc-lower .num,
-        .fc-flap-lower .num {
+        .fc-lower .num, .fc-flap-lower .num {
             transform: translateY(-50%);
         }
 
         .num {
             font-size: var(--fs, 200px);
-            color: #fff;
+            color: var(--accent-color);
             letter-spacing: -0.02em;
             white-space: nowrap;
             pointer-events: none;
             line-height: 1;
+            transition: color 0.5s ease;
         }
 
         .fc-divider {
             position: absolute;
-            top: 50%;
-            left: 0;
-            right: 0;
+            top: 50%; left: 0; right: 0;
             height: 2px;
-            background: #000;
+            background: #050505;
             z-index: 20;
             transform: translateY(-50%);
+            box-shadow: 0 1px 2px rgba(0,0,0,0.5);
         }
 
         /* ── FLAPS (animated) ── */
         .fc-flap-upper {
-            top: 0;
-            align-items: flex-end;
+            top: 0; align-items: flex-end;
             transform-origin: bottom center;
             z-index: 10;
-            background: #1c1c1e;
             border-radius: var(--cr, 18px) var(--cr, 18px) 0 0;
-            visibility: hidden; /* Oculto cuando no gira */
+            visibility: hidden;
         }
 
         .fc-flap-lower {
-            bottom: 0;
-            align-items: flex-start;
+            bottom: 0; align-items: flex-start;
             transform-origin: top center;
             z-index: 9;
-            background: #1c1c1e;
             border-radius: 0 0 var(--cr, 18px) var(--cr, 18px);
-            visibility: hidden; /* Oculto cuando no gira */
+            visibility: hidden;
         }
 
-        /* Física del movimiento: acelera al caer (ease-in), desacelera al chocar (ease-out) */
         .fc-flap-upper.go {
             visibility: visible;
-            animation: flapDown 0.14s ease-in forwards;
+            animation: flapDown 0.15s ease-in forwards;
         }
 
         .fc-flap-lower.go {
             visibility: visible;
-            animation: flapUp 0.14s ease-out forwards;
+            animation: flapUp 0.15s ease-out forwards;
         }
 
         @keyframes flapDown {
-            0% { transform: perspective(800px) rotateX(0deg); }
-            100% { transform: perspective(800px) rotateX(-90deg); }
+            0% { transform: perspective(800px) rotateX(0deg); background: #1a1a1c; }
+            100% { transform: perspective(800px) rotateX(-90deg); background: #0a0a0a; }
         }
 
         @keyframes flapUp {
-            0% { transform: perspective(800px) rotateX(90deg); }
-            100% { transform: perspective(800px) rotateX(0deg); }
+            0% { transform: perspective(800px) rotateX(90deg); background: #0a0a0a; }
+            100% { transform: perspective(800px) rotateX(0deg); background: #1a1a1c; }
         }
 
-        /* Wake lock dot */
-        #dot {
+        /* ── DOCK MENU ── */
+        #dock-container {
             position: fixed;
-            bottom: max(env(safe-area-inset-bottom, 0px), 10px);
-            right: 14px;
-            width: 7px;
-            height: 7px;
-            border-radius: 50%;
-            background: #3a3a3c;
-            transition: background 0.4s;
-        }
-
-        #dot.on {
-            background: #30d158;
-        }
-
-        #hint {
-            position: fixed;
-            bottom: max(env(safe-area-inset-bottom, 0px), 10px);
+            bottom: max(env(safe-area-inset-bottom, 20px), 30px);
             left: 50%;
-            transform: translateX(-50%);
-            font-family: -apple-system, sans-serif;
-            font-size: 10px;
-            color: rgba(255, 255, 255, 0.18);
-            letter-spacing: 0.08em;
-            text-transform: uppercase;
+            transform: translateX(-50%) translateY(100px);
+            opacity: 0;
+            transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
             pointer-events: none;
-            animation: fadeOut 4s 2s ease forwards;
+            z-index: 100;
         }
 
-        @keyframes fadeOut {
-            0%, 70% { opacity: 1; }
-            100% { opacity: 0; }
+        #dock-container.visible {
+            transform: translateX(-50%) translateY(0);
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        #dock {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: var(--dock-bg);
+            backdrop-filter: blur(15px);
+            -webkit-backdrop-filter: blur(15px);
+            padding: 10px 16px;
+            border-radius: 40px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5), inset 0 1px 1px rgba(255,255,255,0.1);
+        }
+
+        .dock-btn {
+            background: rgba(255, 255, 255, 0.08);
+            border: none;
+            border-radius: 50px;
+            color: #fff;
+            font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+            font-size: 14px;
+            font-weight: 500;
+            padding: 10px 18px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            transition: all 0.2s;
+        }
+
+        .dock-btn:active {
+            background: rgba(255, 255, 255, 0.2);
+            transform: scale(0.95);
+        }
+
+        .dock-btn.active {
+            background: var(--accent-color);
+            color: #000;
+        }
+
+        .dock-btn svg { width: 18px; height: 18px; fill: currentColor; }
+
+        .color-dot {
+            width: 14px; height: 14px;
+            border-radius: 50%;
+            background: var(--accent-color);
+            box-shadow: 0 0 5px rgba(0,0,0,0.5);
         }
     </style>
 </head>
 
 <body>
 
-    <div id="date-line"></div>
-
-    <div id="clock">
-        <div class="fc" id="fc-h">
-            <div class="fc-upper"><div class="num" id="h-static-top"></div></div>
-            <div class="fc-lower"><div class="num" id="h-static-bot"></div></div>
-            <div class="fc-flap-upper" id="h-fu"><div class="num" id="h-fu-n"></div></div>
-            <div class="fc-flap-lower" id="h-fl"><div class="num" id="h-fl-n"></div></div>
-            <div class="fc-divider"></div>
-        </div>
-
-        <div id="sep">:</div>
-
-        <div class="fc" id="fc-m">
-            <div class="fc-upper"><div class="num" id="m-static-top"></div></div>
-            <div class="fc-lower"><div class="num" id="m-static-bot"></div></div>
-            <div class="fc-flap-upper" id="m-fu"><div class="num" id="m-fu-n"></div></div>
-            <div class="fc-flap-lower" id="m-fl"><div class="num" id="m-fl-n"></div></div>
-            <div class="fc-divider"></div>
-        </div>
-
-        <div class="fc" id="fc-s">
-            <div class="fc-upper"><div class="num" id="s-static-top"></div></div>
-            <div class="fc-lower"><div class="num" id="s-static-bot"></div></div>
-            <div class="fc-flap-upper" id="s-fu"><div class="num" id="s-fu-n"></div></div>
-            <div class="fc-flap-lower" id="s-fl"><div class="num" id="s-fl-n"></div></div>
-            <div class="fc-divider"></div>
+    <div id="battery-wrapper">
+        <span id="battery-text"></span>
+        <div id="battery-icon">
+            <div id="battery-level">
+                <svg id="battery-bolt" viewBox="0 0 24 24"><path d="M11 21v-7H7l8-12v7h4l-8 12z"/></svg>
+            </div>
         </div>
     </div>
 
-    <div id="dot"></div>
-    <div id="hint">Toca para mantener pantalla activa</div>
+    <div id="content-area">
+        
+        <div id="date-line"></div>
+
+        <div id="clock">
+            <div class="fc" id="fc-h">
+                <div class="fc-upper"><div class="num" id="h-static-top"></div></div>
+                <div class="fc-lower"><div class="num" id="h-static-bot"></div></div>
+                <div class="fc-flap-upper" id="h-fu"><div class="num" id="h-fu-n"></div></div>
+                <div class="fc-flap-lower" id="h-fl"><div class="num" id="h-fl-n"></div></div>
+                <div class="fc-divider"></div>
+            </div>
+
+            <div id="sep">:</div>
+
+            <div class="fc" id="fc-m">
+                <div class="fc-upper"><div class="num" id="m-static-top"></div></div>
+                <div class="fc-lower"><div class="num" id="m-static-bot"></div></div>
+                <div class="fc-flap-upper" id="m-fu"><div class="num" id="m-fu-n"></div></div>
+                <div class="fc-flap-lower" id="m-fl"><div class="num" id="m-fl-n"></div></div>
+                <div class="fc-divider"></div>
+            </div>
+
+            <div class="fc" id="fc-s">
+                <div class="fc-upper"><div class="num" id="s-static-top"></div></div>
+                <div class="fc-lower"><div class="num" id="s-static-bot"></div></div>
+                <div class="fc-flap-upper" id="s-fu"><div class="num" id="s-fu-n"></div></div>
+                <div class="fc-flap-lower" id="s-fl"><div class="num" id="s-fl-n"></div></div>
+                <div class="fc-divider"></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="dock-container">
+        <div id="dock">
+            <button class="dock-btn" id="btn-format">
+                <span id="format-text">24H</span>
+            </button>
+            <button class="dock-btn" id="btn-color">
+                <div class="color-dot"></div>
+            </button>
+            <button class="dock-btn" id="btn-sound">
+                <svg viewBox="0 0 24 24"><path id="sound-icon-path" d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM11 5l-3 3H5v8h3l3 3V5zm8.5 7c0 3.03-1.6 5.63-4 6.91V21c3.55-1.37 6-4.88 6-8.5S19.05 5.37 15.5 4v1.09c2.4 1.28 4 3.88 4 6.91zM3 9v6h4l5 5V4L7 9H3z"/></svg>
+            </button>
+        </div>
+    </div>
 
     <script>
         const pad = n => String(n).padStart(2, '0');
@@ -291,90 +397,178 @@
                 el.style.setProperty('--fs', fs + 'px');
                 el.style.setProperty('--cr', cr + 'px');
             });
-            document.querySelectorAll('.num').forEach(el => {
-                el.style.fontSize = fs + 'px';
-            });
         }
 
         window.addEventListener('resize', calcSizes);
         window.addEventListener('orientationchange', () => setTimeout(calcSizes, 150));
         calcSizes();
 
+        /* ── Vitalidad (Battery API) ── */
+        async function initBattery() {
+            const wrapper = document.getElementById('battery-wrapper');
+            const levelBar = document.getElementById('battery-level');
+            const text = document.getElementById('battery-text');
+
+            if ('getBattery' in navigator) {
+                try {
+                    const battery = await navigator.getBattery();
+                    
+                    const updateBattery = () => {
+                        const pct = Math.round(battery.level * 100);
+                        levelBar.style.width = pct + '%';
+                        // text.textContent = pct + '%'; // Opcional, si prefieres solo el icono quita esto. Lo dejaremos limpio sin texto para emular el screenshot.
+                        
+                        wrapper.classList.toggle('charging', battery.charging);
+                        wrapper.classList.toggle('low', pct <= 20);
+                    };
+
+                    updateBattery();
+                    battery.addEventListener('levelchange', updateBattery);
+                    battery.addEventListener('chargingchange', updateBattery);
+
+                } catch(e) {
+                    wrapper.style.display = 'none';
+                }
+            } else {
+                // Silencio reverencial. iOS/Safari no lo permite.
+                wrapper.style.display = 'none';
+                console.log("El guardián de la manzana mantiene la batería en secreto.");
+            }
+        }
+        initBattery();
+
+        /* ── State & Preferences ── */
+        let is24H = true;
+        let isSoundOn = false;
+        const colors = ['#ffffff', '#ff9f0a', '#30d158', '#0a84ff', '#ff453a'];
+        let colorIdx = 0;
+
+        /* ── Audio Engine ── */
+        let audioCtx;
+        function initAudio() {
+            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+        }
+
+        function playTick() {
+            if (!isSoundOn || !audioCtx) return;
+            const osc = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            
+            osc.type = 'square';
+            osc.frequency.setValueAtTime(150, audioCtx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(40, audioCtx.currentTime + 0.03);
+            
+            gainNode.gain.setValueAtTime(0.15, audioCtx.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.04);
+            
+            osc.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+            
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.05);
+        }
+
+        /* ── Interfaz del Dock ── */
+        const dockContainer = document.getElementById('dock-container');
+        const btnFormat = document.getElementById('btn-format');
+        const btnColor = document.getElementById('btn-color');
+        const btnSound = document.getElementById('btn-sound');
+        const soundPath = document.getElementById('sound-icon-path');
+
+        document.body.addEventListener('click', (e) => {
+            if (e.target.closest('#dock')) return;
+            dockContainer.classList.toggle('visible');
+        });
+
+        btnFormat.addEventListener('click', () => {
+            is24H = !is24H;
+            document.getElementById('format-text').textContent = is24H ? '24H' : '12H';
+            prev.h = -1; 
+            tick();
+        });
+
+        btnColor.addEventListener('click', () => {
+            colorIdx = (colorIdx + 1) % colors.length;
+            document.documentElement.style.setProperty('--accent-color', colors[colorIdx]);
+        });
+
+        btnSound.addEventListener('click', () => {
+            initAudio(); 
+            isSoundOn = !isSoundOn;
+            if (isSoundOn) {
+                btnSound.classList.add('active');
+                soundPath.setAttribute('d', 'M16.5 12c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM11 5l-3 3H5v8h3l3 3V5zm8.5 7c0 3.03-1.6 5.63-4 6.91V21c3.55-1.37 6-4.88 6-8.5S19.05 5.37 15.5 4v1.09c2.4 1.28 4 3.88 4 6.91zM3 9v6h4l5 5V4L7 9H3z');
+                playTick();
+            } else {
+                btnSound.classList.remove('active');
+                soundPath.setAttribute('d', 'M16.5 12c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM11 5l-3 3H5v8h3l3 3V5zM3 9v6h4l5 5V4L7 9H3z');
+            }
+        });
+
         /* ── Flip Coreografía ── */
         let prev = { h: -1, m: -1, s: -1 };
 
-        function doFlip(ids, oldVal, newVal) {
+        function doFlip(ids, oldVal, newVal, isSeconds) {
             const { top, bot, fu, fuN, fl, flN } = ids;
 
-            // 1. Preparamos el escenario:
-            top.textContent = newVal;  // El estático superior ya muestra el futuro
-            bot.textContent = oldVal;  // El estático inferior mantiene el pasado anclado
+            top.textContent = newVal;
+            bot.textContent = oldVal;
+            fuN.textContent = oldVal;
+            flN.textContent = newVal;
 
-            fuN.textContent = oldVal;  // La solapa que cae muestra el pasado
-            flN.textContent = newVal;  // La solapa que llega muestra el futuro
-
-            // 2. Limpieza de estado y forzado de reflow
             fu.classList.remove('go');
             fl.classList.remove('go');
             void fu.offsetWidth; 
 
-            // 3. ¡Cae la tarjeta superior!
             fu.classList.add('go');
 
-            // 4. A mitad de camino (0.14s), la inferior toma el relevo
             setTimeout(() => {
                 fl.classList.add('go');
+                if (isSeconds) playTick();
             }, 140);
 
-            // 5. El final de la coreografía: asentar la nueva realidad
             const finish = () => {
-                bot.textContent = newVal; // El fondo actualiza su valor al futuro, completando la ilusión
+                bot.textContent = newVal;
                 fu.classList.remove('go');
                 fl.classList.remove('go');
                 fl.removeEventListener('animationend', finish);
             };
-            
             fl.addEventListener('animationend', finish);
         }
 
         const cards = {
-            h: {
-                top: document.getElementById('h-static-top'), bot: document.getElementById('h-static-bot'),
-                fu: document.getElementById('h-fu'), fuN: document.getElementById('h-fu-n'),
-                fl: document.getElementById('h-fl'), flN: document.getElementById('h-fl-n'),
-            },
-            m: {
-                top: document.getElementById('m-static-top'), bot: document.getElementById('m-static-bot'),
-                fu: document.getElementById('m-fu'), fuN: document.getElementById('m-fu-n'),
-                fl: document.getElementById('m-fl'), flN: document.getElementById('m-fl-n'),
-            },
-            s: {
-                top: document.getElementById('s-static-top'), bot: document.getElementById('s-static-bot'),
-                fu: document.getElementById('s-fu'), fuN: document.getElementById('s-fu-n'),
-                fl: document.getElementById('s-fl'), flN: document.getElementById('s-fl-n'),
-            },
+            h: { top: document.getElementById('h-static-top'), bot: document.getElementById('h-static-bot'), fu: document.getElementById('h-fu'), fuN: document.getElementById('h-fu-n'), fl: document.getElementById('h-fl'), flN: document.getElementById('h-fl-n') },
+            m: { top: document.getElementById('m-static-top'), bot: document.getElementById('m-static-bot'), fu: document.getElementById('m-fu'), fuN: document.getElementById('m-fu-n'), fl: document.getElementById('m-fl'), flN: document.getElementById('m-fl-n') },
+            s: { top: document.getElementById('s-static-top'), bot: document.getElementById('s-static-bot'), fu: document.getElementById('s-fu'), fuN: document.getElementById('s-fu-n'), fl: document.getElementById('s-fl'), flN: document.getElementById('s-fl-n') },
         };
 
         function tick() {
             const now = new Date();
-            const h = now.getHours(), m = now.getMinutes(), s = now.getSeconds();
+            let h = now.getHours();
+            const m = now.getMinutes();
+            const s = now.getSeconds();
 
+            let displayH = h;
+            if (!is24H) displayH = h % 12 || 12;
+
+            // Formato exacto a tu captura: "2026 M05 28, Thu"
             document.getElementById('date-line').textContent =
                 `${now.getFullYear()} M${pad(now.getMonth() + 1)} ${pad(now.getDate())}, ${DAYS[now.getDay()]}`;
 
-            if (h !== prev.h) {
-                const o = prev.h < 0 ? pad(h) : pad(prev.h);
-                doFlip(cards.h, o, pad(h));
-                prev.h = h;
+            if (displayH !== prev.h) {
+                const o = prev.h < 0 ? pad(displayH) : pad(prev.h);
+                doFlip(cards.h, o, pad(displayH), false);
+                prev.h = displayH;
             }
             if (m !== prev.m) {
                 const o = prev.m < 0 ? pad(m) : pad(prev.m);
-                doFlip(cards.m, o, pad(m));
+                doFlip(cards.m, o, pad(m), false);
                 prev.m = m;
             }
             if (s !== prev.s) {
                 const o = prev.s < 0 ? pad(s) : pad(prev.s);
-                doFlip(cards.s, o, pad(s));
+                doFlip(cards.s, o, pad(s), true);
                 prev.s = s;
             }
         }
@@ -382,34 +576,10 @@
         tick();
         setInterval(tick, 250);
 
-        /* ── Wake Lock ── */
-        let wl = null;
-        const dot = document.getElementById('dot');
-
-        async function acquireWL() {
-            if (!('wakeLock' in navigator)) return;
-            try {
-                wl = await navigator.wakeLock.request('screen');
-                dot.classList.add('on');
-                wl.addEventListener('release', () => { dot.classList.remove('on'); wl = null; });
-            } catch (e) { }
-        }
-
-        document.addEventListener('visibilitychange', () => {
-            if (document.visibilityState === 'visible' && !wl) acquireWL();
-        });
-        document.addEventListener('click', () => { if (!wl) acquireWL(); });
-        acquireWL();
-
-        /* ── Prevent zoom / scroll ── */
-        let lt = 0;
-        document.addEventListener('touchend', e => {
-            const n = Date.now();
-            if (n - lt < 300) e.preventDefault();
-            lt = n;
+        /* ── Prevent zoom ── */
+        document.addEventListener('touchmove', e => {
+            if(e.scale !== 1) { e.preventDefault(); }
         }, { passive: false });
-        document.addEventListener('touchmove', e => e.preventDefault(), { passive: false });
     </script>
 </body>
-
-</html>
+</html> 
