@@ -87,11 +87,9 @@
             background: #1c1c1e;
             box-shadow: 0 8px 32px rgba(0, 0, 0, 0.8), 0 2px 6px rgba(0, 0, 0, 0.9);
             overflow: hidden;
-            /* Forza contexto 3D en el padre para Safari */
-            transform: translateZ(0);
+            transform: translateZ(0); /* Aceleración por hardware */
         }
 
-        /* Cada mitad absoluta */
         .fc-upper,
         .fc-lower,
         .fc-flap-upper,
@@ -103,7 +101,6 @@
             overflow: hidden;
             display: flex;
             justify-content: center;
-            /* Prevención de sangrado de píxeles (Webkit bug fix) */
             -webkit-backface-visibility: hidden;
             backface-visibility: hidden;
         }
@@ -139,7 +136,6 @@
             line-height: 1;
         }
 
-        /* Divider */
         .fc-divider {
             position: absolute;
             top: 50%;
@@ -159,6 +155,7 @@
             z-index: 10;
             background: #1c1c1e;
             border-radius: var(--cr, 18px) var(--cr, 18px) 0 0;
+            visibility: hidden; /* Oculto cuando no gira */
         }
 
         .fc-flap-lower {
@@ -168,17 +165,20 @@
             z-index: 9;
             background: #1c1c1e;
             border-radius: 0 0 var(--cr, 18px) var(--cr, 18px);
+            visibility: hidden; /* Oculto cuando no gira */
         }
 
+        /* Física del movimiento: acelera al caer (ease-in), desacelera al chocar (ease-out) */
         .fc-flap-upper.go {
-            animation: flapDown 0.28s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+            visibility: visible;
+            animation: flapDown 0.14s ease-in forwards;
         }
 
         .fc-flap-lower.go {
-            animation: flapUp 0.28s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+            visibility: visible;
+            animation: flapUp 0.14s ease-out forwards;
         }
 
-        /* Añadimos perspectiva a la rotación para un efecto 3D mecánico y robusto */
         @keyframes flapDown {
             0% { transform: perspective(800px) rotateX(0deg); }
             100% { transform: perspective(800px) rotateX(-90deg); }
@@ -300,73 +300,58 @@
         window.addEventListener('orientationchange', () => setTimeout(calcSizes, 150));
         calcSizes();
 
-        /* ── Flip ── */
+        /* ── Flip Coreografía ── */
         let prev = { h: -1, m: -1, s: -1 };
 
         function doFlip(ids, oldVal, newVal) {
             const { top, bot, fu, fuN, fl, flN } = ids;
 
-            // 1. LA MAGIA REPARADA: El top muestra el futuro, el bottom conserva el pasado.
-            top.textContent = newVal;
-            bot.textContent = oldVal; 
+            // 1. Preparamos el escenario:
+            top.textContent = newVal;  // El estático superior ya muestra el futuro
+            bot.textContent = oldVal;  // El estático inferior mantiene el pasado anclado
 
-            // 2. Flap-upper arranca mostrando el pasado (y caerá para revelar el futuro arriba)
-            fuN.textContent = oldVal;
+            fuN.textContent = oldVal;  // La solapa que cae muestra el pasado
+            flN.textContent = newVal;  // La solapa que llega muestra el futuro
 
-            // 3. Flap-lower contiene el futuro (y rotará hacia arriba para cubrir el pasado abajo)
-            flN.textContent = newVal;
-
-            // 4. Reset then animate
+            // 2. Limpieza de estado y forzado de reflow
             fu.classList.remove('go');
             fl.classList.remove('go');
-            // Inicializar la solapa inferior escondida a 90 grados (con perspectiva añadida)
-            fl.style.transform = 'perspective(800px) rotateX(90deg)';
+            void fu.offsetWidth; 
 
-            void fu.offsetWidth; // reflow
-
+            // 3. ¡Cae la tarjeta superior!
             fu.classList.add('go');
 
-            // Ligero retraso para que la solapa inferior suba fluidamente a la mitad de la caída
+            // 4. A mitad de camino (0.14s), la inferior toma el relevo
             setTimeout(() => {
-                fl.style.transform = '';
                 fl.classList.add('go');
             }, 140);
 
-            fu.addEventListener('animationend', () => {
+            // 5. El final de la coreografía: asentar la nueva realidad
+            const finish = () => {
+                bot.textContent = newVal; // El fondo actualiza su valor al futuro, completando la ilusión
                 fu.classList.remove('go');
-                fu.style.transform = '';
-            }, { once: true });
-            
-            fl.addEventListener('animationend', () => {
                 fl.classList.remove('go');
-                fl.style.transform = '';
-            }, { once: true });
+                fl.removeEventListener('animationend', finish);
+            };
+            
+            fl.addEventListener('animationend', finish);
         }
 
         const cards = {
             h: {
-                top: document.getElementById('h-static-top'),
-                bot: document.getElementById('h-static-bot'),
-                fu: document.getElementById('h-fu'),
-                fuN: document.getElementById('h-fu-n'),
-                fl: document.getElementById('h-fl'),
-                flN: document.getElementById('h-fl-n'),
+                top: document.getElementById('h-static-top'), bot: document.getElementById('h-static-bot'),
+                fu: document.getElementById('h-fu'), fuN: document.getElementById('h-fu-n'),
+                fl: document.getElementById('h-fl'), flN: document.getElementById('h-fl-n'),
             },
             m: {
-                top: document.getElementById('m-static-top'),
-                bot: document.getElementById('m-static-bot'),
-                fu: document.getElementById('m-fu'),
-                fuN: document.getElementById('m-fu-n'),
-                fl: document.getElementById('m-fl'),
-                flN: document.getElementById('m-fl-n'),
+                top: document.getElementById('m-static-top'), bot: document.getElementById('m-static-bot'),
+                fu: document.getElementById('m-fu'), fuN: document.getElementById('m-fu-n'),
+                fl: document.getElementById('m-fl'), flN: document.getElementById('m-fl-n'),
             },
             s: {
-                top: document.getElementById('s-static-top'),
-                bot: document.getElementById('s-static-bot'),
-                fu: document.getElementById('s-fu'),
-                fuN: document.getElementById('s-fu-n'),
-                fl: document.getElementById('s-fl'),
-                flN: document.getElementById('s-fl-n'),
+                top: document.getElementById('s-static-top'), bot: document.getElementById('s-static-bot'),
+                fu: document.getElementById('s-fu'), fuN: document.getElementById('s-fu-n'),
+                fl: document.getElementById('s-fl'), flN: document.getElementById('s-fl-n'),
             },
         };
 
@@ -374,7 +359,6 @@
             const now = new Date();
             const h = now.getHours(), m = now.getMinutes(), s = now.getSeconds();
 
-            // Date
             document.getElementById('date-line').textContent =
                 `${now.getFullYear()} M${pad(now.getMonth() + 1)} ${pad(now.getDate())}, ${DAYS[now.getDay()]}`;
 
@@ -428,4 +412,4 @@
     </script>
 </body>
 
-</html>.
+</html>
