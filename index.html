@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>Flip Clock</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&display=swap');
+
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        html,
+        body {
+            width: 100%;
+            height: 100%;
+            background: #000;
+            overflow: hidden;
+            -webkit-user-select: none;
+            user-select: none;
+            touch-action: none;
+        }
+
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Bebas Neue', sans-serif;
+        }
+
+        /* ── DATE ── */
+        #date-line {
+            color: rgba(255, 255, 255, 0.45);
+            font-family: -apple-system, sans-serif;
+            font-weight: 300;
+            font-size: clamp(12px, 2vw, 16px);
+            letter-spacing: 0.06em;
+            margin-bottom: clamp(10px, 2.5vh, 24px);
+        }
+
+        /* ── CLOCK WRAPPER ── */
+        #clock {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: clamp(6px, 1.8vh, 14px);
+        }
+
+        body.landscape #clock {
+            flex-direction: row;
+            gap: clamp(8px, 2vw, 20px);
+        }
+
+        body.landscape #sep {
+            display: none;
+        }
+
+        body.landscape #date-line {
+            position: fixed;
+            top: max(env(safe-area-inset-top, 0px), 12px);
+            left: 50%;
+            transform: translateX(-50%);
+            margin: 0;
+        }
+
+        #sep {
+            color: rgba(255, 255, 255, 0.35);
+            font-size: clamp(24px, 6vw, 44px);
+            line-height: 1;
+        }
+
+        /* ── CARD ── */
+        .fc {
+            /* Card size driven by CSS vars set by JS on resize */
+            width: var(--cw, 260px);
+            height: var(--ch, 220px);
+            border-radius: var(--cr, 18px);
+            position: relative;
+            background: #1c1c1e;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.8), 0 2px 6px rgba(0, 0, 0, 0.9);
+            overflow: hidden;
+            /* clip children */
+        }
+
+        /* Each "half" is absolutely positioned and clips to top or bottom 50% */
+        .fc-upper,
+        .fc-lower,
+        .fc-flap-upper,
+        .fc-flap-lower {
+            position: absolute;
+            left: 0;
+            right: 0;
+            height: 50%;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+        }
+
+        /* Static upper: sits in top half, digit aligned to BOTTOM of upper half */
+        .fc-upper {
+            top: 0;
+            align-items: flex-end;
+        }
+
+        /* Static lower: sits in bottom half, digit aligned to TOP of lower half */
+        .fc-lower {
+            bottom: 0;
+            align-items: flex-start;
+        }
+
+        .fc-upper .num,
+        .fc-flap-upper .num {
+            /* Pull digit up so only its bottom half is visible */
+            margin-bottom: 0;
+            line-height: 1;
+            /* The digit height equals card height, so half = card height / 2
+     We shift the digit so the centre aligns with the bottom of this div */
+            transform: translateY(50%);
+        }
+
+        .fc-lower .num,
+        .fc-flap-lower .num {
+            transform: translateY(-50%);
+        }
+
+        .num {
+            font-size: var(--fs, 200px);
+            color: #fff;
+            letter-spacing: -0.02em;
+            white-space: nowrap;
+            pointer-events: none;
+            line-height: 1;
+        }
+
+        /* Divider */
+        .fc-divider {
+            position: absolute;
+            top: 50%;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: #000;
+            z-index: 20;
+            transform: translateY(-50%);
+        }
+
+        /* ── FLAPS (animated) ── */
+        .fc-flap-upper {
+            top: 0;
+            align-items: flex-end;
+            transform-origin: bottom center;
+            z-index: 10;
+            background: #1c1c1e;
+            border-radius: var(--cr, 18px) var(--cr, 18px) 0 0;
+        }
+
+        .fc-flap-lower {
+            bottom: 0;
+            align-items: flex-start;
+            transform-origin: top center;
+            z-index: 9;
+            background: #1c1c1e;
+            border-radius: 0 0 var(--cr, 18px) var(--cr, 18px);
+        }
+
+        .fc-flap-upper.go {
+            animation: flapDown 0.28s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+        }
+
+        .fc-flap-lower.go {
+            animation: flapUp 0.28s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+        }
+
+        @keyframes flapDown {
+            0% {
+                transform: rotateX(0deg);
+            }
+
+            100% {
+                transform: rotateX(-90deg);
+            }
+        }
+
+        @keyframes flapUp {
+            0% {
+                transform: rotateX(90deg);
+            }
+
+            100% {
+                transform: rotateX(0deg);
+            }
+        }
+
+        /* Wake lock dot */
+        #dot {
+            position: fixed;
+            bottom: max(env(safe-area-inset-bottom, 0px), 10px);
+            right: 14px;
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: #3a3a3c;
+            transition: background 0.4s;
+        }
+
+        #dot.on {
+            background: #30d158;
+        }
+
+        #hint {
+            position: fixed;
+            bottom: max(env(safe-area-inset-bottom, 0px), 10px);
+            left: 50%;
+            transform: translateX(-50%);
+            font-family: -apple-system, sans-serif;
+            font-size: 10px;
+            color: rgba(255, 255, 255, 0.18);
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            pointer-events: none;
+            animation: fadeOut 4s 2s ease forwards;
+        }
+
+        @keyframes fadeOut {
+
+            0%,
+            70% {
+                opacity: 1
+            }
+
+            100% {
+                opacity: 0
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="date-line"></div>
+
+    <div id="clock">
+        <div class="fc" id="fc-h">
+            <div class="fc-upper">
+                <div class="num" id="h-static-top"></div>
+            </div>
+            <div class="fc-lower">
+                <div class="num" id="h-static-bot"></div>
+            </div>
+            <div class="fc-flap-upper" id="h-fu">
+                <div class="num" id="h-fu-n"></div>
+            </div>
+            <div class="fc-flap-lower" id="h-fl">
+                <div class="num" id="h-fl-n"></div>
+            </div>
+            <div class="fc-divider"></div>
+        </div>
+
+        <div id="sep">:</div>
+
+        <div class="fc" id="fc-m">
+            <div class="fc-upper">
+                <div class="num" id="m-static-top"></div>
+            </div>
+            <div class="fc-lower">
+                <div class="num" id="m-static-bot"></div>
+            </div>
+            <div class="fc-flap-upper" id="m-fu">
+                <div class="num" id="m-fu-n"></div>
+            </div>
+            <div class="fc-flap-lower" id="m-fl">
+                <div class="num" id="m-fl-n"></div>
+            </div>
+            <div class="fc-divider"></div>
+        </div>
+
+        <div class="fc" id="fc-s">
+            <div class="fc-upper">
+                <div class="num" id="s-static-top"></div>
+            </div>
+            <div class="fc-lower">
+                <div class="num" id="s-static-bot"></div>
+            </div>
+            <div class="fc-flap-upper" id="s-fu">
+                <div class="num" id="s-fu-n"></div>
+            </div>
+            <div class="fc-flap-lower" id="s-fl">
+                <div class="num" id="s-fl-n"></div>
+            </div>
+            <div class="fc-divider"></div>
+        </div>
+    </div>
+
+    <div id="dot"></div>
+    <div id="hint">Toca para mantener pantalla activa</div>
+
+    <script>
+        const pad = n => String(n).padStart(2, '0');
+        const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+        /* ── Sizing ── */
+        function calcSizes() {
+            const W = window.innerWidth;
+            const H = window.innerHeight;
+            const landscape = W > H;
+            document.body.classList.toggle('landscape', landscape);
+
+            let cw, ch, fs, cr;
+            if (landscape) {
+                // 3 cards side by side with gaps → each card ~28vw, max height ~70vh
+                cw = Math.min(Math.floor(W * 0.27), Math.floor(H * 0.72));
+                ch = Math.round(cw * 0.85);
+                fs = Math.round(ch * 0.92);
+                cr = Math.round(cw * 0.07);
+            } else {
+                // portrait: cards stack → width ~80vw, height ~auto
+                cw = Math.min(Math.floor(W * 0.80), 340);
+                ch = Math.round(cw * 0.76);
+                fs = Math.round(ch * 0.92);
+                cr = Math.round(cw * 0.07);
+            }
+
+            document.querySelectorAll('.fc').forEach(el => {
+                el.style.setProperty('--cw', cw + 'px');
+                el.style.setProperty('--ch', ch + 'px');
+                el.style.setProperty('--fs', fs + 'px');
+                el.style.setProperty('--cr', cr + 'px');
+            });
+            // Also set font-size on .num elements via a global rule
+            document.querySelectorAll('.num').forEach(el => {
+                el.style.fontSize = fs + 'px';
+            });
+        }
+
+        window.addEventListener('resize', calcSizes);
+        window.addEventListener('orientationchange', () => setTimeout(calcSizes, 150));
+        calcSizes();
+
+        /* ── Flip ── */
+        let prev = { h: -1, m: -1, s: -1 };
+
+        function doFlip(ids, oldVal, newVal) {
+            const { top, bot, fu, fuN, fl, flN } = ids;
+
+            // 1. Set static layers to NEW value
+            top.textContent = newVal;
+            bot.textContent = newVal;
+
+            // 2. Flap-upper shows OLD top (will rotate down away)
+            fuN.textContent = oldVal;
+
+            // 3. Flap-lower shows NEW bottom (will rotate up into view)
+            flN.textContent = newVal;
+
+            // 4. Reset then animate
+            fu.classList.remove('go');
+            fl.classList.remove('go');
+            // Start fl already rotated to 90 (hidden), will animate to 0
+            fl.style.transform = 'rotateX(90deg)';
+
+            void fu.offsetWidth; // reflow
+
+            fu.classList.add('go');
+
+            // Slight delay so lower flap appears mid-way through upper
+            setTimeout(() => {
+                fl.style.transform = '';
+                fl.classList.add('go');
+            }, 140);
+
+            fu.addEventListener('animationend', () => {
+                fu.classList.remove('go');
+                fu.style.transform = '';
+            }, { once: true });
+            fl.addEventListener('animationend', () => {
+                fl.classList.remove('go');
+                fl.style.transform = '';
+            }, { once: true });
+        }
+
+        const cards = {
+            h: {
+                top: document.getElementById('h-static-top'),
+                bot: document.getElementById('h-static-bot'),
+                fu: document.getElementById('h-fu'),
+                fuN: document.getElementById('h-fu-n'),
+                fl: document.getElementById('h-fl'),
+                flN: document.getElementById('h-fl-n'),
+            },
+            m: {
+                top: document.getElementById('m-static-top'),
+                bot: document.getElementById('m-static-bot'),
+                fu: document.getElementById('m-fu'),
+                fuN: document.getElementById('m-fu-n'),
+                fl: document.getElementById('m-fl'),
+                flN: document.getElementById('m-fl-n'),
+            },
+            s: {
+                top: document.getElementById('s-static-top'),
+                bot: document.getElementById('s-static-bot'),
+                fu: document.getElementById('s-fu'),
+                fuN: document.getElementById('s-fu-n'),
+                fl: document.getElementById('s-fl'),
+                flN: document.getElementById('s-fl-n'),
+            },
+        };
+
+        function tick() {
+            const now = new Date();
+            const h = now.getHours(), m = now.getMinutes(), s = now.getSeconds();
+
+            // Date
+            document.getElementById('date-line').textContent =
+                `${now.getFullYear()} M${pad(now.getMonth() + 1)} ${pad(now.getDate())}, ${DAYS[now.getDay()]}`;
+
+            if (h !== prev.h) {
+                const o = prev.h < 0 ? pad(h) : pad(prev.h);
+                doFlip(cards.h, o, pad(h));
+                prev.h = h;
+            }
+            if (m !== prev.m) {
+                const o = prev.m < 0 ? pad(m) : pad(prev.m);
+                doFlip(cards.m, o, pad(m));
+                prev.m = m;
+            }
+            if (s !== prev.s) {
+                const o = prev.s < 0 ? pad(s) : pad(prev.s);
+                doFlip(cards.s, o, pad(s));
+                prev.s = s;
+            }
+        }
+
+        tick();
+        setInterval(tick, 250);
+
+        /* ── Wake Lock ── */
+        let wl = null;
+        const dot = document.getElementById('dot');
+
+        async function acquireWL() {
+            if (!('wakeLock' in navigator)) return;
+            try {
+                wl = await navigator.wakeLock.request('screen');
+                dot.classList.add('on');
+                wl.addEventListener('release', () => { dot.classList.remove('on'); wl = null; });
+            } catch (e) { }
+        }
+
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible' && !wl) acquireWL();
+        });
+        document.addEventListener('click', () => { if (!wl) acquireWL(); });
+        acquireWL();
+
+        /* ── Prevent zoom / scroll ── */
+        let lt = 0;
+        document.addEventListener('touchend', e => {
+            const n = Date.now();
+            if (n - lt < 300) e.preventDefault();
+            lt = n;
+        }, { passive: false });
+        document.addEventListener('touchmove', e => e.preventDefault(), { passive: false });
+    </script>
+</body>
+
+</html>
